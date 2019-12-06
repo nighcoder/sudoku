@@ -11,12 +11,8 @@
         cell (fn [idx v]
                (if v
                  [:td.hint [:input {:name idx :value v}]]
-                 [:td [:input {:name " "}]]))
-        sqs (core/squares data)
-        subtb (fn [v]
-                (let [v (partition 3 v)]
-                  [:table (for [i (range 3)]
-                            [:tr (map cell)])]))]
+                 [:td [:input {:name idx :value " "}]]))
+        sqs (core/sqs data)]
     [:form#state
       [:table
         (for [row (partition 3 sqs)]
@@ -25,18 +21,106 @@
                         (for [row (partition 3 table)]
                           [:tr (map (partial apply cell) row)])]])])]]))
 
-(defn page
+(def controls
+  [:div.controls
+    [:form#dashboard
+      [:button {:formethod :get
+                :formaction "/"
+                :type :submit}
+        "Generate"]
+      [:button {:formmethod :post
+                :formaction "/"
+                :type :submit
+                :form :state}
+        "Solve"]
+      [:button {:formmethod :post
+                :formaction "/clear"
+                :type :submit}
+        "Clear"]]])
+
+(defn clear
+  [_]
+  [:main
+    [:div.main
+      (table-gen (repeat 81 nil))
+     controls]
+    [:div.extra]])
+
+(defn generate
+  [_]
+  (let [t0 (java.time.LocalDateTime/now)
+        board (core/generator)
+        dt (java.time.Duration/between t0 (java.time.LocalDateTime/now))]
+    [:main
+     [:div.main
+          (table-gen board)
+      controls]
+     [:div.extra
+       [:p (format "Table generated in %d ms." (.toMillis dt))]]]))
+
+(defn presolve-parse
+  [{:keys [form-params]}]
+  (->> (range 81)
+       (map str)
+       (map #(get form-params %))
+       (map clojure.string/trim)
+       (map #(if (core/digit-str? %) (Integer/parseInt %) nil))))
+
+(defn solve
   [board]
-  (hic/html
-    "<!doctype html>"
-    [:html
-      [:head
-        [:meta {:charset "utf-8"}]
-        [:title "Sudoku"]
-        [:style
-          "div.main table table {
+  (let [board (presolve-parse board)
+        t0 (java.time.LocalDateTime/now)
+        sols (core/solvero board)
+        dt (java.time.Duration/between t0 (java.time.LocalDateTime/now))
+        n (count sols)
+        msol (->> sols
+                 first
+                 (map vector (range))
+                 core/sqs)]
+    [:main
+     [:div.main
+      [:form#state
+       [:table
+        (for [row (partition 3 msol)]
+          [:tr
+           (for [table row]
+             [:td
+              [:table
+               (for [trow (partition 3 table)]
+                 [:tr
+                   (for [[idx v] trow]
+                     [(if (get (apply vector board) idx) :td.hint :td.sol)
+                      [:input {:name idx :value v}]])])]])])]]
+      controls]
+     [:div.extra
+      [:p (format "Table solved in %d ms." (.toMillis dt))]
+      [:p (if (= n 1) "Solution is unique." (format "Found %d solutions" n))]]]))
+      
+(defn page
+  [f]
+  (fn [& args]
+    (hic/html
+     "<!doctype html>"
+     [:html
+       [:head
+         [:meta {:charset "utf-8"}]
+         [:title "Sudoku"]
+         [:style
+           "
+           main {
+             width: 600px;
+             height: 600px;
+           }
+           div.main table {
+             table-layout: fixed;
+             width: 300px;
+             height: 300px;
+             border: 1px solid;
+             border-collapse: collapse;
+           }
+           div.main table table {
              width: 100%;
-             height: 100%;
+             height: 100%
            }
            td {
              width: 33.33%;
@@ -44,81 +128,41 @@
              text-align: center;
              border: 1px solid;
              padding: 0;
-           }
-           td.hint {
-             background-color: lightgray;
-             width: 33.33%;
-             height: 100%;
-           }
-           td.hint>input {
-             background-color: lightgray;
+             overflow: hidden; 
            }
            input {
              width: 100%;
              height: 100%;
-             border: 1px solid;
+             border: 0px solid;
              text-align: center;
+           }          
+           td.hint>input {
+             background-color: lightgray;
+           } 
+           td.sol>input {
+               color: tomato;
            }
-           div.main {
-             width: 800px;
-             height:800px;
-           }
-           div.main table {
-             width: 40%;
-             height: 40%;
-             border: 1px solid;
-             border-collapse: collapse;
-           }"]]
-      [:body
-        [:header
-          [:h1 "Sudoku Solver"]]
-        [:main
-          [:div.main
-               (table-gen board)
-            [:div.controls
-              [:form#dashboard
-                [:button {:formethod :get
-                          :formaction "/"
-                          :type :submit}
-                  "Generate"]
-                [:button {:formmethod :post
-                          :formaction "/"
-                          :type :submit
-                          :form :state}
-                  "Solve"]
-                [:button {:formmethod :post
-                          :formaction "/clear"
-                          :type :submit}
-                  "Clear"]]]]
-         [:div.extra]]]
-      [:footer
-        [:p "Sudoku © 2019 Ionuț-Daniel Ciumberică"]]]))
+"]]
+
+       [:body
+         [:header
+           [:h1 "Sudoku Solver"]]
+         (apply f args)
+        [:footer
+          [:p "Sudoku © 2019 Ionuț-Daniel Ciumberică"]]]])))
             
 (com/defroutes routes
   (com/GET "/" _ 
-           (page '(5 3 nil nil 7 nil nil nil nil,
-                   6 nil nil 1 9 5 nil nil nil,
-                   nil 9 8 nil nil nil nil 6 nil,
-                   8 nil nil nil 6 nil nil nil 3,
-                   4 nil nil 8 nil 3 nil nil 1,
-                   7 nil nil nil 2 nil nil nil 6,
-                   nil 6 nil nil nil nil 2 8 nil,
-                   nil nil nil 4 1 9 nil nil 5,
-                   nil nil nil nil 8 nil nil 7 9)))
+           (page generate))
   (com/POST "/" request
-            (mw/wrap-params 
-              (fn [{:keys [form-params]}]
-                (let [res (map #(get form-params %) (map str (range 81)))
-                      int-res (map #(if  % (Integer/parseInt %)) res)]
-                  (page (first (core/solvero int-res)))))))
-                  
+            ((page solve) ((mw/wrap-params identity) request)))
   (com/POST "/clear" request
-            (page (repeat 81 nil))))
+            (page clear)))
 
 (defn run
   [port]
   (serv/run-server routes
-                   {:ip "localhost"
+                   {:ip "172.21.10.192"
                     :port port}))
 
 (defn -main
