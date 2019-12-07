@@ -94,8 +94,11 @@
       controls]
      [:div.extra
       [:p (format "Table solved in %d ms." (.toMillis dt))]
-      [:p (if (= n 1) "Solution is unique." (format "Found %d solutions" n))]]]))
-      
+      [:p (case n
+            1 "Solution is unique."
+            5 "Found at least 5 solutions"
+            (format "Found %d solutions" n))]]]))
+
 (defn page
   [f]
   (fn [& args]
@@ -120,29 +123,30 @@
            }
            div.main table table {
              width: 100%;
-             height: 100%
+             height: 100%;
            }
            td {
              width: 33.33%;
-             height: 100%;
              text-align: center;
              border: 1px solid;
              padding: 0;
-             overflow: hidden; 
+             overflow: hidden;
            }
            input {
              width: 100%;
              height: 100%;
-             border: 0px solid;
              text-align: center;
-           }          
+             border: 0px solid;
+           }
+           td.hint {
+             background-color: lightgray;
+           }
            td.hint>input {
              background-color: lightgray;
-           } 
+           }
            td.sol>input {
                color: tomato;
-           }
-"]]
+           }"]]
 
        [:body
          [:header
@@ -150,9 +154,9 @@
          (apply f args)
         [:footer
           [:p "Sudoku © 2019 Ionuț-Daniel Ciumberică"]]]])))
-            
+
 (com/defroutes routes
-  (com/GET "/" _ 
+  (com/GET "/" _
            (page generate))
   (com/POST "/" request
             ((page solve) ((mw/wrap-params identity) request)))
@@ -162,8 +166,7 @@
 (defn run
   [port]
   (serv/run-server routes
-                   {:ip "172.21.10.192"
-                    :port port}))
+                   {:port port}))
 
 (defn -main
   [& args]

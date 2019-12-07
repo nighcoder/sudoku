@@ -12,11 +12,11 @@
     nil 6 nil nil nil nil 2 8 nil,
     nil nil nil 4 1 9 nil nil 5,
     nil nil nil nil 8 nil nil 7 9))
-    
+
 (defn digit-str?
   [x]
   (#{"1" "2" "3" "4" "5" "6" "7" "8" "9"} x))
-             
+
 (defn lines
   [col]
   (partition 9 col))
@@ -24,7 +24,7 @@
 (defn cols
   [col]
   (apply map list (lines col)))
- 
+
 (defn sqs
   [col]
   (loop [i 0
@@ -44,8 +44,9 @@
        (< 5 (mod i 9))
        (recur (inc i) (rest data) res res0 res1 (conj res2 (first data))))
      res)))
-       
+
 (defn squares
+  "Returns a list of of lists, each containing the elements of a 3x3 subtable"
   [col]
   (->> col
        lines
@@ -53,7 +54,7 @@
        (apply mapcat list)
        (partition 3)
        (map #(mapcat list* %))))
-       
+
 (defn init
   [vars board]
   (if (seq vars)
@@ -94,8 +95,8 @@
             (if (= n 1)
              (recur (assoc board i nil))
              (recur board))))))))
-           
-        
+
+; Unusable
 (defn generatero
   []
   (let [vars (repeatedly 81 mk/lvar)
